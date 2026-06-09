@@ -1,0 +1,154 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Guess the Location</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body {
+  font-family: Arial;
+  text-align: center;
+  margin: 0;
+}
+
+/* Prevent sideways dragging / infinite scroll feel */
+#map {
+  height: 500px;
+  width: 90%;
+  max-width: 900px;
+  margin: 20px auto;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Keep layout tidy */
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+
+button {
+  padding: 12px 25px;
+  font-size: 16px;
+  margin: 15px;
+  cursor: pointer;
+}
+
+#result {
+  font-size: 18px;
+  margin-top: 15px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>🌍 Guess the Location</h2>
+<p><b>Clue:</b> Famous leaning tower</p>
+
+<div id="map"></div>
+
+<button onclick="confirmGuess()">✅ Confirm My Guess</button>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+// ✅ CHANGE DAILY
+const correctLocation = [43.7229, 10.3966];
+
+let guessMarker = null;
+let guessCoords = null;
+let answerMarker = null;
+let line = null;
+
+const map = L.map('map', {
+  worldCopyJump: false,
+  maxBounds: [[-90, -180], [90, 180]],
+  maxBoundsViscosity: 1.0,
+
+
+  zoomSnap: 0.5,
+  zoomDelta: 0.75,
+  wheelPxPerZoomLevel: 60
+
+}).setView([20, 0], 2);
+
+
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  noWrap: true  
+}).addTo(map);
+
+// Click to place guess
+map.on('click', function(e) {
+  guessCoords = [e.latlng.lat, e.latlng.lng];
+
+  if (guessMarker) map.removeLayer(guessMarker);
+  if (answerMarker) map.removeLayer(answerMarker);
+  if (line) map.removeLayer(line);
+
+  guessMarker = L.marker(guessCoords).addTo(map)
+    .bindPopup("Your guess")
+    .openPopup();
+
+  document.getElementById("result").innerHTML = "📍 Guess placed. Click confirm when ready!";
+});
+
+// Confirm guess
+function confirmGuess() {
+  if (!guessCoords) {
+    document.getElementById("result").innerHTML =
+      "❗ Please click on the map first to place your guess!";
+    return;
+  }
+
+  const distance = getDistance(correctLocation, guessCoords);
+
+  // Show correct location
+  answerMarker = L.marker(correctLocation).addTo(map)
+    .bindPopup("✅ Correct location");
+
+  // Draw line
+  line = L.polyline([guessCoords, correctLocation]).addTo(map);
+
+  document.getElementById("result").innerHTML = `
+    🎯 You were <b>${formatDistance(distance)}</b> away!<br><br>
+    ✅ The correct location has been revealed on the map.<br><br>
+    📢 <b>Please post your distance in TGIF but keep the answer secret!</b>
+  `;
+}
+
+// Distance calculation
+function getDistance(a, b) {
+  const R = 6371;
+  const dLat = (b[0]-a[0]) * Math.PI/180;
+  const dLon = (b[1]-a[1]) * Math.PI/180;
+
+  const lat1 = a[0] * Math.PI/180;
+  const lat2 = b[0] * Math.PI/180;
+
+  const x = Math.sin(dLat/2) ** 2 +
+            Math.sin(dLon/2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+
+  const y = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  return R * y;
+}
+
+// Format nicely
+function formatDistance(d) {
+  return d < 1
+    ? Math.round(d * 1000) + " metres"
+    : Math.round(d) + " km";
+}
+</script>
+
+</body>
+</html>
