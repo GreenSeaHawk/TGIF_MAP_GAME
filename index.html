@@ -51,7 +51,7 @@ button {
 
 <div id="map"></div>
 
-<button onclick="confirmGuess()">✅ Confirm My Guess</button>
+<button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
 
 <div id="result"></div>
 
@@ -61,26 +61,24 @@ button {
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <script>
-// ✅ CHANGE THESE DAILY
-const clue = "The greatest football stadium in the world";
-const correctLocation = [53.4308435,-2.9633977];
+// ✅ CHANGE DAILY
+const clue = "Famous tower in Paris";
+const correctLocation = [48.8584, 2.2945];
 
-// Set clue
+// Set clue text
 document.getElementById("clueText").innerHTML = "<b>Clue:</b> " + clue;
 
 let guessMarker = null;
 let guessCoords = null;
 let answerMarker = null;
 let line = null;
+let hasGuessed = false;
 
-// Map setup
+// ✅ ORIGINAL STABLE MAP SETTINGS (no new zoom tweaks)
 const map = L.map('map', {
   worldCopyJump: false,
   maxBounds: [[-90, -180], [90, 180]],
-  maxBoundsViscosity: 1.0,
-  zoomSnap: 0.25,
-  zoomDelta: 0.5,
-  wheelPxPerZoomLevel: 80
+  maxBoundsViscosity: 1.0
 }).setView([20, 0], 2);
 
 // Tiles
@@ -90,6 +88,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // Click to place guess
 map.on('click', function(e) {
+  if (hasGuessed) return; // 🚫 block after guess
+
   guessCoords = [e.latlng.lat, e.latlng.lng];
 
   if (guessMarker) map.removeLayer(guessMarker);
@@ -106,22 +106,34 @@ map.on('click', function(e) {
 
 // Confirm guess
 function confirmGuess() {
+  if (hasGuessed) return;
+
   if (!guessCoords) {
     document.getElementById("result").innerHTML =
       "❗ Please click on the map first to place your guess!";
     return;
   }
 
+  hasGuessed = true;
+
   const distance = getDistance(correctLocation, guessCoords);
 
+  // Show correct location
   answerMarker = L.marker(correctLocation).addTo(map)
     .bindPopup("✅ Correct location");
 
+  // Draw line
   line = L.polyline([guessCoords, correctLocation]).addTo(map);
 
+  // Disable button
+  const btn = document.getElementById("confirmBtn");
+  btn.disabled = true;
+  btn.innerText = "✅ Guess Submitted";
+
+  // Show result
   document.getElementById("result").innerHTML = `
     🎯 You were <b>${formatDistance(distance)}</b> away!<br><br>
-    ✅ The correct location has been revealed on the map.<br><br>
+    ✅ Your guess has been locked in.<br><br>
     📢 <b>Please post your distance in TGIF but keep the answer secret!</b>
   `;
 }
@@ -142,7 +154,7 @@ function getDistance(a, b) {
   return R * y;
 }
 
-// Format distance
+// Format distance nicely
 function formatDistance(d) {
   return d < 1
     ? Math.round(d * 1000) + " metres"
