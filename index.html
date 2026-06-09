@@ -5,8 +5,8 @@
 <meta charset="utf-8" />
 <title>Guess the Location</title>
 
+<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
 <style>
 body {
@@ -15,20 +15,17 @@ body {
   margin: 0;
 }
 
-/* Prevent sideways dragging / infinite scroll feel */
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+
 #map {
   height: 500px;
   width: 90%;
   max-width: 900px;
   margin: 20px auto;
   border-radius: 10px;
-  overflow: hidden;
-}
-
-/* Keep layout tidy */
-.container {
-  max-width: 900px;
-  margin: auto;
 }
 
 button {
@@ -50,7 +47,7 @@ button {
 <div class="container">
 
 <h2>🌍 Guess the Location</h2>
-<p><b>Clue:</b> Famous leaning tower</p>
+<p id="clueText"></p>
 
 <div id="map"></div>
 
@@ -60,31 +57,35 @@ button {
 
 </div>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
 <script>
-// ✅ CHANGE DAILY
-const correctLocation = [43.7229, 10.3966];
+// ✅ CHANGE THESE DAILY
+const clue = "Famous tower in Paris";
+const correctLocation = [48.8584, 2.2945];
+
+// Set clue
+document.getElementById("clueText").innerHTML = "<b>Clue:</b> " + clue;
 
 let guessMarker = null;
 let guessCoords = null;
 let answerMarker = null;
 let line = null;
 
+// Map setup
 const map = L.map('map', {
   worldCopyJump: false,
   maxBounds: [[-90, -180], [90, 180]],
   maxBoundsViscosity: 1.0,
-
-
-  zoomSnap: 0.5,
-  zoomDelta: 0.75,
-  wheelPxPerZoomLevel: 60
-
+  zoomSnap: 0.25,
+  zoomDelta: 0.5,
+  wheelPxPerZoomLevel: 80
 }).setView([20, 0], 2);
 
-
-
+// Tiles
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  noWrap: true  
+  noWrap: true
 }).addTo(map);
 
 // Click to place guess
@@ -99,7 +100,8 @@ map.on('click', function(e) {
     .bindPopup("Your guess")
     .openPopup();
 
-  document.getElementById("result").innerHTML = "📍 Guess placed. Click confirm when ready!";
+  document.getElementById("result").innerHTML =
+    "📍 Guess placed. Click confirm when ready!";
 });
 
 // Confirm guess
@@ -112,11 +114,9 @@ function confirmGuess() {
 
   const distance = getDistance(correctLocation, guessCoords);
 
-  // Show correct location
   answerMarker = L.marker(correctLocation).addTo(map)
     .bindPopup("✅ Correct location");
 
-  // Draw line
   line = L.polyline([guessCoords, correctLocation]).addTo(map);
 
   document.getElementById("result").innerHTML = `
@@ -142,7 +142,7 @@ function getDistance(a, b) {
   return R * y;
 }
 
-// Format nicely
+// Format distance
 function formatDistance(d) {
   return d < 1
     ? Math.round(d * 1000) + " metres"
