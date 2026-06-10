@@ -1,12 +1,10 @@
 
 <!DOCTYPE html>
 <html>
-
 <head>
   <meta charset="utf-8" />
   <title>Guess the Location</title>
 
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <style>
@@ -28,259 +26,193 @@
       margin: 20px auto;
       border-radius: 10px;
     }
-
-    input {
-      padding: 10px;
-      font-size: 16px;
-      margin-top: 10px;
-    }
-
-    button {
-      padding: 12px 25px;
-      font-size: 16px;
-      margin: 10px;
-      cursor: pointer;
-    }
-
-    #leaderboard {
-      margin-top: 20px;
-      text-align: left;
-    }
   </style>
 </head>
 
 <body>
 
-  <div class="container">
+<div class="container">
 
-    <h2>🌍 Guess the Location</h2>
-    <p id="clueText"></p>
+  <h2>🌍 Guess the Location</h2>
+  <p id="clueText"></p>
 
-    <input id="nameInput" placeholder="Enter your name" />
+  <input id="nameInput" placeholder="Enter your name" />
 
-    <div id="map"></div>
+  <div id="map"></div>
 
-    <button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
+  <button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
 
-    <div id="result"></div>
+  <div id="result"></div>
 
-    <h3>🏆 Leaderboard</h3>
-    <div id="leaderboard"></div>
+  <h3>🏆 Leaderboard</h3>
+  <div id="leaderboard"></div>
 
-  </div>
+</div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- Supabase JS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
 
-  <script>
+// ✅ DAILY EDITS
+const clue = "ALASKA";
+const correctLocation = [61.2047228,-149.9192879];
+const quizId = "2026-06-10 Test E";
 
-    // ✅ DAILY VALUES (EDIT THESE ONLY EACH DAY)
-    const clue = "Capital of Alaska";
-    const correctLocation = [61.2047228,-149.9192879];
-    const quizId = "2026-06-10 Test D";
+// ✅ SUPABASE
+const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
+const SUPABASE_KEY = "sb_publishable_WB0RzuTp2I6jz4ZwaLq63Q_hjD7Ynsf";
 
-    // ✅ SUPABASE DETAILS
-    const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_WB0RzuTp2I6jz4ZwaLq63Q_hjD7Ynsf";
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
-    const supabaseClient = window.supabase.createClient(
-      SUPABASE_URL,
-      SUPABASE_KEY
-    );
+document.getElementById("clueText").innerHTML =
+  "<b>Clue:</b> " + clue;
 
-    document.getElementById("clueText").innerHTML =
-      "<b>Clue:</b> " + clue;
+let guessCoords = null;
+let guessMarker = null;
+let answerMarker = null;
+let hasGuessed = false;
 
-    let guessCoords = null;
-    let guessMarker = null;
-    let answerMarker = null;
-    let hasGuessed = false;
+// ✅ MAP (IMPORTANT: removed maxBounds)
+const map = L.map('map').setView([20, 0], 2);
 
-    // ✅ MAP SETUP
-    const map = L.map('map', {
-      worldCopyJump: false,
-      maxBounds: [[-90, -180], [90, 180]],
-      maxBoundsViscosity: 1.0
-    }).setView([20, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      noWrap: true
-    }).addTo(map);
+// ✅ CLICK
+map.on('click', function (e) {
+  if (hasGuessed) return;
 
-    // ✅ CLICK TO PLACE GUESS
-    map.on('click', function (e) {
-      if (hasGuessed) return;
+  guessCoords = [e.latlng.lat, e.latlng.lng];
 
-      guessCoords = [e.latlng.lat, e.latlng.lng];
+  if (guessMarker) map.removeLayer(guessMarker);
 
-      if (guessMarker) map.removeLayer(guessMarker);
+  guessMarker = L.marker(guessCoords).addTo(map)
+    .bindPopup("Your guess")
+    .openPopup();
 
-      guessMarker = L.marker(guessCoords).addTo(map)
-        .bindPopup("Your guess")
-        .openPopup();
+  document.getElementById("result").innerHTML =
+    "📍 Guess placed. Click confirm when ready!";
+});
 
-      document.getElementById("result").innerHTML =
-        "📍 Guess placed. Click confirm when ready!";
-    });
+// ✅ ✅ SIMPLE + CORRECT SHORTEST PATH FIX
+function getShortestLine(a, b) {
+  let [lat1, lng1] = a;
+  let [lat2, lng2] = b;
 
-    // ✅ ✅ CORRECT WRAPPED LINE FUNCTION
-    function drawWrappedLine(map, a, b) {
-      let [lat1, lng1] = a;
-      let [lat2, lng2] = b;
+  let diff = lng2 - lng1;
 
-      let diff = lng2 - lng1;
+  if (diff > 180) {
+    lng2 -= 360;
+  } else if (diff < -180) {
+    lng2 += 360;
+  }
 
-      if (Math.abs(diff) > 180) {
+  return [
+    [lat1, lng1],
+    [lat2, lng2]
+  ];
+}
 
-        if (diff > 0) {
-          lng1 += 360;
-        } else {
-          lng2 += 360;
-        }
+// ✅ CONFIRM
+async function confirmGuess() {
+  if (hasGuessed) return;
 
-        let edge = lng1 > lng2 ? 180 : -180;
+  const name = document.getElementById("nameInput").value.trim();
 
-        let t = (edge - lng1) / (lng2 - lng1);
-        let latEdge = lat1 + t * (lat2 - lat1);
+  if (!name) {
+    document.getElementById("result").innerHTML =
+      "❗ Enter your name!";
+    return;
+  }
 
-        let segment1 = [
-          [lat1, lng1],
-          [latEdge, edge]
-        ];
+  if (!guessCoords) {
+    document.getElementById("result").innerHTML =
+      "❗ Click the map first!";
+    return;
+  }
 
-        let oppositeEdge = edge === 180 ? -180 : 180;
-
-        let segment2 = [
-          [latEdge, oppositeEdge],
-          [lat2, lng2]
-        ];
+  const { data: existing } = await supabaseClient
+    .from('guesses')
+    .select('name')
+    .eq('name', name)
+    .eq('quiz_id', quizId);
 
-        segment1 = segment1.map(([lat, lng]) => [lat, normalizeLng(lng)]);
-        segment2 = segment2.map(([lat, lng]) => [lat, normalizeLng(lng)]);
+  if (existing && existing.length > 0) {
+    document.getElementById("result").innerHTML =
+      "❗ Name already taken!";
+    return;
+  }
 
-        L.polyline(segment1).addTo(map);
-        L.polyline(segment2).addTo(map);
+  hasGuessed = true;
 
-      } else {
-        L.polyline([a, b]).addTo(map);
-      }
-    }
+  const distance = getDistance(correctLocation, guessCoords);
 
-    function normalizeLng(lng) {
-      while (lng > 180) lng -= 360;
-      while (lng < -180) lng += 360;
-      return lng;
-    }
+  await supabaseClient.from('guesses').insert([
+    { name, distance, quiz_id: quizId }
+  ]);
 
-    // ✅ CONFIRM GUESS
-    async function confirmGuess() {
-      if (hasGuessed) return;
+  answerMarker = L.marker(correctLocation).addTo(map);
 
-      const name = document.getElementById("nameInput").value.trim();
+  // ✅ CORRECT VISUAL LINE
+  const lineCoords = getShortestLine(guessCoords, correctLocation);
+  L.polyline(lineCoords).addTo(map);
 
-      if (!name) {
-        document.getElementById("result").innerHTML =
-          "❗ Please enter your name!";
-        return;
-      }
+  const group = new L.featureGroup([guessMarker, answerMarker]);
+  map.fitBounds(group.getBounds(), { padding: [50, 50] });
 
-      if (!guessCoords) {
-        document.getElementById("result").innerHTML =
-          "❗ Please click the map first!";
-        return;
-      }
+  document.getElementById("confirmBtn").disabled = true;
 
-      const { data: existing } = await supabaseClient
-        .from('guesses')
-        .select('name')
-        .eq('name', name)
-        .eq('quiz_id', quizId);
+  document.getElementById("result").innerHTML =
+    `🎯 You were <b>${formatDistance(distance)}</b> away!`;
 
-      if (existing && existing.length > 0) {
-        document.getElementById("result").innerHTML =
-          "❗ Name already taken!";
-        return;
-      }
+  renderLeaderboard();
+}
 
-      hasGuessed = true;
+// ✅ LEADERBOARD
+async function renderLeaderboard() {
+  const { data } = await supabaseClient
+    .from('guesses')
+    .select('*')
+    .eq('quiz_id', quizId)
+    .order('distance', { ascending: true });
 
-      const distance = getDistance(correctLocation, guessCoords);
+  let html = "<ol>";
+  data?.forEach(e => {
+    html += `<li>${e.name} - ${formatDistance(e.distance)}</li>`;
+  });
+  html += "</ol>";
 
-      await supabaseClient.from('guesses').insert([
-        {
-          name: name,
-          distance: distance,
-          quiz_id: quizId
-        }
-      ]);
+  document.getElementById("leaderboard").innerHTML = html;
+}
 
-      answerMarker = L.marker(correctLocation).addTo(map);
+renderLeaderboard();
 
-      // ✅ DRAW CORRECT WRAPPED LINE
-      drawWrappedLine(map, guessCoords, correctLocation);
+// ✅ DISTANCE
+function getDistance(a, b) {
+  const R = 6371;
 
-      // ✅ NICE ZOOM
-      const group = new L.featureGroup([guessMarker, answerMarker]);
-      map.fitBounds(group.getBounds(), { padding: [50, 50] });
+  const dLat = (b[0]-a[0]) * Math.PI/180;
+  const dLon = (b[1]-a[1]) * Math.PI/180;
 
-      document.getElementById("confirmBtn").disabled = true;
+  const lat1 = a[0]*Math.PI/180;
+  const lat2 = b[0]*Math.PI/180;
 
-      document.getElementById("result").innerHTML =
-        `🎯 You were <b>${formatDistance(distance)}</b> away!`;
+  const x = Math.sin(dLat/2)**2 +
+            Math.sin(dLon/2)**2 * Math.cos(lat1) * Math.cos(lat2);
 
-      renderLeaderboard();
-    }
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
 
-    // ✅ LEADERBOARD
-    async function renderLeaderboard() {
-      const { data } = await supabaseClient
-        .from('guesses')
-        .select('*')
-        .eq('quiz_id', quizId)
-        .order('distance', { ascending: true });
+function formatDistance(d) {
+  return d < 1
+    ? Math.round(d * 1000) + " metres"
+    : Math.round(d) + " km";
+}
 
-      let html = "<ol>";
-
-      data?.forEach(entry => {
-        html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
-      });
-
-      html += "</ol>";
-
-      document.getElementById("leaderboard").innerHTML = html;
-    }
-
-    renderLeaderboard();
-
-    // ✅ DISTANCE
-    function getDistance(a, b) {
-      const R = 6371;
-
-      const dLat = (b[0] - a[0]) * Math.PI / 180;
-      const dLon = (b[1] - a[1]) * Math.PI / 180;
-
-      const lat1 = a[0] * Math.PI / 180;
-      const lat2 = b[0] * Math.PI / 180;
-
-      const x = Math.sin(dLat / 2) ** 2 +
-        Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-
-      const y = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-
-      return R * y;
-    }
-
-    function formatDistance(d) {
-      return d < 1
-        ? Math.round(d * 1000) + " metres"
-        : Math.round(d) + " km";
-    }
-
-  </script>
+</script>
 
 </body>
-
 </html>
