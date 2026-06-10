@@ -107,9 +107,7 @@
       maxBoundsViscosity: 1.0
     }).setView([20, 0], 2);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      noWrap: true
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     // Click map
     map.on('click', function (e) {
