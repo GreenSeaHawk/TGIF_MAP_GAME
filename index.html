@@ -84,10 +84,11 @@
   const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
   const SUPABASE_KEY = "sb_publishable_WB0RzuTp2I6jz4ZwaLq63Q_hjD7Ynsf";
 
-  const supabase = window.supabase.createClient(
+  const supabaseClient = window.supabase.createClient(
     SUPABASE_URL,
     SUPABASE_KEY
   );
+
 
   // Set clue
   document.getElementById("clueText").innerHTML = "<b>Clue:</b> " + clue;
@@ -142,7 +143,7 @@
     }
 
     // Check unique name
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseClient
       .from('guesses')
       .select('name')
       .eq('name', name)
@@ -159,7 +160,7 @@
     const distance = getDistance(correctLocation, guessCoords);
 
     // Save to DB
-    await supabase.from('guesses').insert([
+    await supabaseClient.from('guesses').insert([
       {
         name: name,
         distance: distance,
@@ -182,7 +183,7 @@
 
   // Load leaderboard
   async function renderLeaderboard() {
-    const { data } = await supabase
+    const { data } = await supabaseClient
       .from('guesses')
       .select('*')
       .eq('quiz_id', quizId)
