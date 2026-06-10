@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <title>Guess the Location</title>
 
-  <!-- ✅ Leaflet CSS -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <style>
@@ -69,29 +69,28 @@
 
   </div>
 
-  <!-- ✅ Leaflet JS (THIS FIXES "L is not defined") -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet JS -->
+  ://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- ✅ Supabase JS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase -->
+  https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2
 
   <script>
     // ✅ DAILY VALUES
-    const clue = "Capital of Alaska";
-    const correctLocation = [61.2047228,-149.9192879];
-    const quizId = "2026-06-10 quiz C";
+    const clue = "Famous tower in Paris";
+    const correctLocation = [48.8584, 2.2945];
+    const quizId = "2026-06-10";
 
-    // ✅ YOUR SUPABASE DETAILS
+    // ✅ SUPABASE
     const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
     const SUPABASE_KEY = "sb_publishable_WB0RzuTp2I6jz4ZwaLq63Q_hjD7Ynsf";
 
-    // ✅ IMPORTANT: renamed to avoid conflicts
     const supabaseClient = window.supabase.createClient(
       SUPABASE_URL,
       SUPABASE_KEY
     );
 
-    // ✅ Set clue
+    // Set clue
     document.getElementById("clueText").innerHTML =
       "<b>Clue:</b> " + clue;
 
@@ -101,19 +100,18 @@
     let line = null;
     let hasGuessed = false;
 
-    // ✅ MAP INITIALISATION
+    // MAP
     const map = L.map('map', {
       worldCopyJump: false,
       maxBounds: [[-90, -180], [90, 180]],
       maxBoundsViscosity: 1.0
     }).setView([20, 0], 2);
 
-    // ✅ Map tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       noWrap: true
     }).addTo(map);
 
-    // ✅ Click map
+    // Click to place guess
     map.on('click', function (e) {
       if (hasGuessed) return;
 
@@ -129,7 +127,28 @@
         "📍 Guess placed. Click confirm when ready!";
     });
 
-    // ✅ Confirm guess
+    // ✅ NEW: Wrap line properly across map edges
+    function getWrappedLineCoords(a, b) {
+      let [lat1, lng1] = a;
+      let [lat2, lng2] = b;
+
+      let diff = lng2 - lng1;
+
+      if (Math.abs(diff) > 180) {
+        if (diff > 0) {
+          lng1 += 360;
+        } else {
+          lng2 += 360;
+        }
+      }
+
+      return [
+        [lat1, lng1],
+        [lat2, lng2]
+      ];
+    }
+
+    // Confirm guess
     async function confirmGuess() {
       if (hasGuessed) return;
 
@@ -147,7 +166,7 @@
         return;
       }
 
-      // ✅ Check unique name
+      // Unique name check
       const { data: existing } = await supabaseClient
         .from('guesses')
         .select('name')
@@ -164,7 +183,7 @@
 
       const distance = getDistance(correctLocation, guessCoords);
 
-      // ✅ Save to Supabase
+      // Save guess
       await supabaseClient.from('guesses').insert([
         {
           name: name,
@@ -173,10 +192,19 @@
         }
       ]);
 
-      // ✅ Show correct location
+      // Show markers
       answerMarker = L.marker(correctLocation).addTo(map);
-      line = L.polyline([guessCoords, correctLocation]).addTo(map);
 
+      // ✅ Use wrapped coordinates
+      const wrappedCoords = getWrappedLineCoords(guessCoords, correctLocation);
+
+      line = L.polyline(wrappedCoords).addTo(map);
+
+      // ✅ Optional camera zoom to both points
+      const group = new L.featureGroup([guessMarker, answerMarker]);
+      map.fitBounds(group.getBounds(), { padding: [50, 50] });
+
+      // Lock UI
       document.getElementById("confirmBtn").disabled = true;
       document.getElementById("confirmBtn").innerText = "✅ Submitted";
 
@@ -186,7 +214,7 @@
       renderLeaderboard();
     }
 
-    // ✅ Render leaderboard
+    // Leaderboard
     async function renderLeaderboard() {
       const { data } = await supabaseClient
         .from('guesses')
@@ -195,11 +223,9 @@
         .order('distance', { ascending: true });
 
       let html = "<ol>";
-
       data?.forEach(entry => {
         html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
       });
-
       html += "</ol>";
 
       document.getElementById("leaderboard").innerHTML = html;
@@ -207,7 +233,7 @@
 
     renderLeaderboard();
 
-    // ✅ Distance function
+    // Distance calculation
     function getDistance(a, b) {
       const R = 6371;
 
