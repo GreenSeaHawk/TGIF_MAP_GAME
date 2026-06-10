@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <title>Guess the Location</title>
 
-  <!-- ✅ Leaflet CSS -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <style>
@@ -69,19 +69,20 @@
 
   </div>
 
-  <!-- ✅ Leaflet JS -->
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- ✅ Supabase -->
+  <!-- Supabase JS -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
-    // ✅ DAILY VALUES
-    const clue = "Capital of Alaska";
-    const correctLocation = [61.2047228,-149.9192879];
-    const quizId = "2026-06-10 Alaska";
 
-    // ✅ SUPABASE
+    // ✅ DAILY VALUES (EDIT THESE ONLY EACH DAY)
+    const clue = "Famous tower in Paris";
+    const correctLocation = [48.8584, 2.2945];
+    const quizId = "2026-06-10";
+
+    // ✅ SUPABASE DETAILS
     const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
     const SUPABASE_KEY = "sb_publishable_WB0RzuTp2I6jz4ZwaLq63Q_hjD7Ynsf";
 
@@ -90,17 +91,15 @@
       SUPABASE_KEY
     );
 
-    // Set clue
     document.getElementById("clueText").innerHTML =
       "<b>Clue:</b> " + clue;
 
     let guessCoords = null;
     let guessMarker = null;
     let answerMarker = null;
-    let line = null;
     let hasGuessed = false;
 
-    // ✅ MAP INITIALISATION
+    // ✅ MAP SETUP
     const map = L.map('map', {
       worldCopyJump: false,
       maxBounds: [[-90, -180], [90, 180]],
@@ -111,7 +110,7 @@
       noWrap: true
     }).addTo(map);
 
-    // Click map
+    // ✅ CLICK TO PLACE GUESS
     map.on('click', function (e) {
       if (hasGuessed) return;
 
@@ -127,29 +126,56 @@
         "📍 Guess placed. Click confirm when ready!";
     });
 
-    // ✅ FIXED: wrapped line calculation
-    function getWrappedCoords(a, b) {
+    // ✅ ✅ CORRECT WRAPPED LINE FUNCTION
+    function drawWrappedLine(map, a, b) {
       let [lat1, lng1] = a;
       let [lat2, lng2] = b;
 
       let diff = lng2 - lng1;
 
-      // adjust if crossing dateline
       if (Math.abs(diff) > 180) {
+
         if (diff > 0) {
           lng1 += 360;
         } else {
           lng2 += 360;
         }
-      }
 
-      return [
-        [lat1, lng1],
-        [lat2, lng2]
-      ];
+        let edge = lng1 > lng2 ? 180 : -180;
+
+        let t = (edge - lng1) / (lng2 - lng1);
+        let latEdge = lat1 + t * (lat2 - lat1);
+
+        let segment1 = [
+          [lat1, lng1],
+          [latEdge, edge]
+        ];
+
+        let oppositeEdge = edge === 180 ? -180 : 180;
+
+        let segment2 = [
+          [latEdge, oppositeEdge],
+          [lat2, lng2]
+        ];
+
+        segment1 = segment1.map(([lat, lng]) => [lat, normalizeLng(lng)]);
+        segment2 = segment2.map(([lat, lng]) => [lat, normalizeLng(lng)]);
+
+        L.polyline(segment1).addTo(map);
+        L.polyline(segment2).addTo(map);
+
+      } else {
+        L.polyline([a, b]).addTo(map);
+      }
     }
 
-    // Confirm guess
+    function normalizeLng(lng) {
+      while (lng > 180) lng -= 360;
+      while (lng < -180) lng += 360;
+      return lng;
+    }
+
+    // ✅ CONFIRM GUESS
     async function confirmGuess() {
       if (hasGuessed) return;
 
@@ -167,7 +193,6 @@
         return;
       }
 
-      // Check unique name
       const { data: existing } = await supabaseClient
         .from('guesses')
         .select('name')
@@ -192,18 +217,15 @@
         }
       ]);
 
-      // markers
       answerMarker = L.marker(correctLocation).addTo(map);
 
-      // ✅ FIXED LINE
-      const coords = getWrappedCoords(guessCoords, correctLocation);
-      line = L.polyline(coords).addTo(map);
+      // ✅ DRAW CORRECT WRAPPED LINE
+      drawWrappedLine(map, guessCoords, correctLocation);
 
-      // ✅ nice zoom (optional)
+      // ✅ NICE ZOOM
       const group = new L.featureGroup([guessMarker, answerMarker]);
       map.fitBounds(group.getBounds(), { padding: [50, 50] });
 
-      // lock UI
       document.getElementById("confirmBtn").disabled = true;
 
       document.getElementById("result").innerHTML =
@@ -212,7 +234,7 @@
       renderLeaderboard();
     }
 
-    // Leaderboard
+    // ✅ LEADERBOARD
     async function renderLeaderboard() {
       const { data } = await supabaseClient
         .from('guesses')
@@ -233,7 +255,7 @@
 
     renderLeaderboard();
 
-    // Distance calc
+    // ✅ DISTANCE
     function getDistance(a, b) {
       const R = 6371;
 
