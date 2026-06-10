@@ -195,39 +195,46 @@
       // markers
       answerMarker = L.marker(correctLocation).addTo(map);
 
-      // ✅ FIXED LINE - split across dateline if needed
-      const coords = getWrappedCoords(guessCoords, correctLocation);
+      // ✅ FIXED LINE - split across dateline with interpolated latitude
+      const guessLng = guessCoords[1];
+      const correctLng = correctLocation[1];
+      const guessLat = guessCoords[0];
+      const correctLat = correctLocation[0];
+      const diff = correctLng - guessLng;
       
-      // Check if line crosses dateline
-      if (coords[0][1] !== guessCoords[1] || coords[1][1] !== correctLocation[1]) {
-        // Line crosses dateline, split into two segments
-        const guessLng = guessCoords[1];
-        const correctLng = correctLocation[1];
+      if (Math.abs(diff) > 180) {
+        // Crosses dateline, interpolate latitude at the crossing
+        let latAtEdge;
+        let seg1, seg2;
         
-        if (guessLng > correctLng) {
-          // Guess is on right side, correct location on left
-          line = L.polyline([
-            [guessCoords[0], guessLng],
-            [guessCoords[0], 180]
-          ]).addTo(map);
-          L.polyline([
-            [correctLocation[0], -180],
-            [correctLocation[0], correctLng]
-          ]).addTo(map);
+        if (diff > 180) {
+          // Shortest path goes west (wraps westward)
+          const effectiveDiff = diff - 360;
+          const distToWest = -180 - guessLng;
+          const fraction = distToWest / effectiveDiff;
+          latAtEdge = guessLat + (correctLat - guessLat) * fraction;
+          
+          seg1 = [[guessLat, guessLng], [latAtEdge, -180]];
+          seg2 = [[latAtEdge, 180], [correctLat, correctLng]];
         } else {
-          // Correct location is on right side, guess on left
-          line = L.polyline([
-            [guessCoords[0], guessLng],
-            [guessCoords[0], -180]
-          ]).addTo(map);
-          L.polyline([
-            [correctLocation[0], 180],
-            [correctLocation[0], correctLng]
-          ]).addTo(map);
+          // diff < -180, shortest path goes east (wraps eastward)
+          const effectiveDiff = diff + 360;
+          const distToEast = 180 - guessLng;
+          const fraction = distToEast / effectiveDiff;
+          latAtEdge = guessLat + (correctLat - guessLat) * fraction;
+          
+          seg1 = [[guessLat, guessLng], [latAtEdge, 180]];
+          seg2 = [[latAtEdge, -180], [correctLat, correctLng]];
         }
+        
+        line = L.polyline(seg1).addTo(map);
+        L.polyline(seg2).addTo(map);
       } else {
-        // Normal line, no dateline crossing
-        line = L.polyline(coords).addTo(map);
+        // Normal case, no dateline crossing
+        line = L.polyline([
+          [guessLat, guessLng],
+          [correctLat, correctLng]
+        ]).addTo(map);
       }
 
       // ✅ nice zoom (optional)
