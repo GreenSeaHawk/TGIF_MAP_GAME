@@ -6,7 +6,7 @@
   <meta charset="utf-8" />
   <title>Guess the Location</title>
 
-  <!-- Leaflet CSS -->
+  <!-- ✅ Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 
   <style>
@@ -69,17 +69,17 @@
 
   </div>
 
-  <!-- Leaflet JS -->
-  ://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- ✅ Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- Supabase -->
-  https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2
+  <!-- ✅ Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <script>
     // ✅ DAILY VALUES
     const clue = "Famous tower in Paris";
     const correctLocation = [48.8584, 2.2945];
-    const quizId = "2026-06-10 Test C";
+    const quizId = "2026-06-10";
 
     // ✅ SUPABASE
     const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
@@ -100,7 +100,7 @@
     let line = null;
     let hasGuessed = false;
 
-    // MAP
+    // ✅ MAP INITIALISATION
     const map = L.map('map', {
       worldCopyJump: false,
       maxBounds: [[-90, -180], [90, 180]],
@@ -111,7 +111,7 @@
       noWrap: true
     }).addTo(map);
 
-    // Click to place guess
+    // Click map
     map.on('click', function (e) {
       if (hasGuessed) return;
 
@@ -127,13 +127,14 @@
         "📍 Guess placed. Click confirm when ready!";
     });
 
-    // ✅ NEW: Wrap line properly across map edges
-    function getWrappedLineCoords(a, b) {
+    // ✅ FIXED: wrapped line calculation
+    function getWrappedCoords(a, b) {
       let [lat1, lng1] = a;
       let [lat2, lng2] = b;
 
       let diff = lng2 - lng1;
 
+      // adjust if crossing dateline
       if (Math.abs(diff) > 180) {
         if (diff > 0) {
           lng1 += 360;
@@ -162,11 +163,11 @@
 
       if (!guessCoords) {
         document.getElementById("result").innerHTML =
-          "❗ Please click on the map first!";
+          "❗ Please click the map first!";
         return;
       }
 
-      // Unique name check
+      // Check unique name
       const { data: existing } = await supabaseClient
         .from('guesses')
         .select('name')
@@ -175,7 +176,7 @@
 
       if (existing && existing.length > 0) {
         document.getElementById("result").innerHTML =
-          "❗ That name is already taken!";
+          "❗ Name already taken!";
         return;
       }
 
@@ -183,7 +184,6 @@
 
       const distance = getDistance(correctLocation, guessCoords);
 
-      // Save guess
       await supabaseClient.from('guesses').insert([
         {
           name: name,
@@ -192,21 +192,19 @@
         }
       ]);
 
-      // Show markers
+      // markers
       answerMarker = L.marker(correctLocation).addTo(map);
 
-      // ✅ Use wrapped coordinates
-      const wrappedCoords = getWrappedLineCoords(guessCoords, correctLocation);
+      // ✅ FIXED LINE
+      const coords = getWrappedCoords(guessCoords, correctLocation);
+      line = L.polyline(coords).addTo(map);
 
-      line = L.polyline(wrappedCoords).addTo(map);
-
-      // ✅ Optional camera zoom to both points
+      // ✅ nice zoom (optional)
       const group = new L.featureGroup([guessMarker, answerMarker]);
       map.fitBounds(group.getBounds(), { padding: [50, 50] });
 
-      // Lock UI
+      // lock UI
       document.getElementById("confirmBtn").disabled = true;
-      document.getElementById("confirmBtn").innerText = "✅ Submitted";
 
       document.getElementById("result").innerHTML =
         `🎯 You were <b>${formatDistance(distance)}</b> away!`;
@@ -223,9 +221,11 @@
         .order('distance', { ascending: true });
 
       let html = "<ol>";
+
       data?.forEach(entry => {
         html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
       });
+
       html += "</ol>";
 
       document.getElementById("leaderboard").innerHTML = html;
@@ -233,7 +233,7 @@
 
     renderLeaderboard();
 
-    // Distance calculation
+    // Distance calc
     function getDistance(a, b) {
       const R = 6371;
 
