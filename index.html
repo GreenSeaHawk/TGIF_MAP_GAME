@@ -28,16 +28,22 @@ body {
   border-radius: 10px;
 }
 
+input {
+  padding: 10px;
+  font-size: 16px;
+  margin-top: 10px;
+}
+
 button {
   padding: 12px 25px;
   font-size: 16px;
-  margin: 15px;
+  margin: 10px;
   cursor: pointer;
 }
 
-#result {
-  font-size: 18px;
-  margin-top: 15px;
+#leaderboard {
+  margin-top: 20px;
+  text-align: left;
 }
 </style>
 </head>
@@ -49,52 +55,64 @@ button {
 <h2>🌍 Guess the Location</h2>
 <p id="clueText"></p>
 
+<input id="nameInput" placeholder="Enter your name" />
+
 <div id="map"></div>
 
 <button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
 
 <div id="result"></div>
 
+<h3>🏆 Leaderboard</h3>
+<div id="leaderboard"></div>
+
 </div>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
 <script>
 // ✅ CHANGE DAILY
 const clue = "Famous tower in Paris";
 const correctLocation = [48.8584, 2.2945];
+const quizId = "2026-06-10"; // 🔴 CHANGE DAILY
 
-// Set clue text
+// ✅ ADD YOUR DETAILS
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Set clue
 document.getElementById("clueText").innerHTML = "<b>Clue:</b> " + clue;
 
-let guessMarker = null;
 let guessCoords = null;
+let guessMarker = null;
 let answerMarker = null;
 let line = null;
 let hasGuessed = false;
 
-// ✅ ORIGINAL STABLE MAP SETTINGS (no new zoom tweaks)
+// Map
 const map = L.map('map', {
   worldCopyJump: false,
   maxBounds: [[-90, -180], [90, 180]],
   maxBoundsViscosity: 1.0
 }).setView([20, 0], 2);
 
-// Tiles
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   noWrap: true
 }).addTo(map);
 
-// Click to place guess
+// Click to guess
 map.on('click', function(e) {
-  if (hasGuessed) return; // 🚫 block after guess
+  if (hasGuessed) return;
 
   guessCoords = [e.latlng.lat, e.latlng.lng];
 
   if (guessMarker) map.removeLayer(guessMarker);
-  if (answerMarker) map.removeLayer(answerMarker);
-  if (line) map.removeLayer(line);
 
   guessMarker = L.marker(guessCoords).addTo(map)
     .bindPopup("Your guess")
@@ -105,12 +123,33 @@ map.on('click', function(e) {
 });
 
 // Confirm guess
-function confirmGuess() {
+async function confirmGuess() {
   if (hasGuessed) return;
+
+  const name = document.getElementById("nameInput").value.trim();
+
+  if (!name) {
+    document.getElementById("result").innerHTML =
+      "❗ Please enter your name!";
+    return;
+  }
 
   if (!guessCoords) {
     document.getElementById("result").innerHTML =
-      "❗ Please click on the map first to place your guess!";
+      "❗ Please click on the map first!";
+    return;
+  }
+
+  // Check if name already used
+  const { data: existing } = await supabase
+    .from('guesses')
+    .select('name')
+    .eq('name', name)
+    .eq('quiz_id', quizId);
+
+  if (existing.length > 0) {
+    document.getElementById("result").innerHTML =
+      "❗ That name is already taken!";
     return;
   }
 
@@ -118,11 +157,19 @@ function confirmGuess() {
 
   const distance = getDistance(correctLocation, guessCoords);
 
-  // Show correct location
+  // Save to Supabase
+  await supabase.from('guesses').insert([
+    {
+      name: name,
+      distance: distance,
+      quiz_id: quizId
+    }
+  ]);
+
+  // Show answer
   answerMarker = L.marker(correctLocation).addTo(map)
     .bindPopup("✅ Correct location");
 
-  // Draw line
   line = L.polyline([guessCoords, correctLocation]).addTo(map);
 
   // Disable button
@@ -130,17 +177,40 @@ function confirmGuess() {
   btn.disabled = true;
   btn.innerText = "✅ Guess Submitted";
 
-  // Show result
   document.getElementById("result").innerHTML = `
     🎯 You were <b>${formatDistance(distance)}</b> away!<br><br>
     ✅ Your guess has been locked in.<br><br>
     📢 <b>Please post your distance in TGIF but keep the answer secret!</b>
   `;
+
+  await renderLeaderboard();
 }
 
-// Distance calculation
+// Load leaderboard
+async function renderLeaderboard() {
+  const { data } = await supabase
+    .from('guesses')
+    .select('*')
+    .eq('quiz_id', quizId)
+    .order('distance', { ascending: true });
+
+  let html = "<ol>";
+
+  data.forEach(entry => {
+    html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
+  });
+
+  html += "</ol>";
+
+  document.getElementById("leaderboard").innerHTML = html;
+}
+
+renderLeaderboard();
+
+// Distance calc
 function getDistance(a, b) {
   const R = 6371;
+
   const dLat = (b[0]-a[0]) * Math.PI/180;
   const dLon = (b[1]-a[1]) * Math.PI/180;
 
@@ -151,10 +221,10 @@ function getDistance(a, b) {
             Math.sin(dLon/2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
 
   const y = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+
   return R * y;
 }
 
-// Format distance nicely
 function formatDistance(d) {
   return d < 1
     ? Math.round(d * 1000) + " metres"
