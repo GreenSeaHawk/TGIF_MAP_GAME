@@ -107,7 +107,9 @@
       maxBoundsViscosity: 1.0
     }).setView([20, 0], 2);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      noWrap: true
+    }).addTo(map);
 
     // Click map
     map.on('click', function (e) {
@@ -193,9 +195,40 @@
       // markers
       answerMarker = L.marker(correctLocation).addTo(map);
 
-      // ✅ FIXED LINE
+      // ✅ FIXED LINE - split across dateline if needed
       const coords = getWrappedCoords(guessCoords, correctLocation);
-      line = L.polyline(coords).addTo(map);
+      
+      // Check if line crosses dateline
+      if (coords[0][1] !== guessCoords[1] || coords[1][1] !== correctLocation[1]) {
+        // Line crosses dateline, split into two segments
+        const guessLng = guessCoords[1];
+        const correctLng = correctLocation[1];
+        
+        if (guessLng > correctLng) {
+          // Guess is on right side, correct location on left
+          line = L.polyline([
+            [guessCoords[0], guessLng],
+            [guessCoords[0], 180]
+          ]).addTo(map);
+          L.polyline([
+            [correctLocation[0], -180],
+            [correctLocation[0], correctLng]
+          ]).addTo(map);
+        } else {
+          // Correct location is on right side, guess on left
+          line = L.polyline([
+            [guessCoords[0], guessLng],
+            [guessCoords[0], -180]
+          ]).addTo(map);
+          L.polyline([
+            [correctLocation[0], 180],
+            [correctLocation[0], correctLng]
+          ]).addTo(map);
+        }
+      } else {
+        // Normal line, no dateline crossing
+        line = L.polyline(coords).addTo(map);
+      }
 
       // ✅ nice zoom (optional)
       const group = new L.featureGroup([guessMarker, answerMarker]);
