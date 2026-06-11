@@ -46,6 +46,90 @@
       margin-top: 20px;
       text-align: left;
     }
+
+    #leaderboard-wrapper {
+      background: linear-gradient(135deg, #fff5e1 0%, #ffe8cc 100%);
+      border: 3px solid #ff9800;
+      border-radius: 10px;
+      padding: 25px;
+      max-width: 600px;
+      margin: 30px auto;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    #leaderboard-wrapper h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      color: #ff9800;
+      font-size: 24px;
+    }
+
+    #leaderboard ol {
+      padding-left: 25px;
+    }
+
+    #leaderboard li {
+      padding: 10px 0;
+      font-size: 16px;
+      border-bottom: 1px solid rgba(255, 152, 0, 0.2);
+    }
+
+    #leaderboard li:last-child {
+      border-bottom: none;
+    }
+
+    .instructions {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin: 20px auto;
+      text-align: left;
+      max-width: 800px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    .input-section {
+      background: #f0f8ff;
+      border: 2px solid #2196F3;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 600px;
+      border-radius: 8px;
+    }
+
+    #nameInput {
+      width: 80%;
+      max-width: 400px;
+      padding: 12px;
+      font-size: 16px;
+      border: 2px solid #2196F3;
+      border-radius: 5px;
+    }
+
+    #confirmBtn {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+
+    #confirmBtn:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+
+    #confirmBtn:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    .first-place {
+      font-weight: bold;
+      font-size: 18px;
+      color: #ff9800;
+    }
   </style>
 </head>
 
@@ -53,19 +137,34 @@
 
   <div class="container">
 
-    <h2>🌍 Guess the Location</h2>
+    <h1>🌍 Guess the Location</h1>
+
+    <div class="instructions">
+      <strong>📋 How to Play:</strong>
+      <ul style="margin: 10px 0; padding-left: 20px;">
+        <li>Read the clue below</li>
+        <li>Click on the map to place your guess</li>
+        <li>Enter your name and confirm your guess</li>
+        <li>See how close you are and check the leaderboard!</li>
+      </ul>
+    </div>
+
     <p id="clueText"></p>
 
-    <input id="nameInput" placeholder="Enter your name" />
-
-    <div id="map"></div>
-
-    <button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
+    <div class="input-section">
+      <div style="margin-bottom: 15px;">
+        <input id="nameInput" placeholder="Enter your name" />
+      </div>
+      <div id="map"></div>
+      <button id="confirmBtn" onclick="confirmGuess()">✅ Confirm My Guess</button>
+    </div>
 
     <div id="result"></div>
 
-    <h3>🏆 Leaderboard</h3>
-    <div id="leaderboard"></div>
+    <div id="leaderboard-wrapper">
+      <h3>🏆 Leaderboard</h3>
+      <div id="leaderboard"></div>
+    </div>
 
   </div>
 
@@ -260,8 +359,12 @@
 
       let html = "<ol>";
 
-      data?.forEach(entry => {
-        html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
+      data?.forEach((entry, index) => {
+        if (index === 0) {
+          html += `<li class="first-place">👑 ${entry.name} - ${formatDistance(entry.distance)}</li>`;
+        } else {
+          html += `<li>${entry.name} - ${formatDistance(entry.distance)}</li>`;
+        }
       });
 
       html += "</ol>";
