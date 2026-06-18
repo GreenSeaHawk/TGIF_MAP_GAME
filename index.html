@@ -130,6 +130,42 @@
       font-size: 18px;
       color: #ff9800;
     }
+
+    #viewGuessesBtn {
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      padding: 12px 25px;
+      font-size: 16px;
+      margin-top: 20px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    #viewGuessesBtn:hover {
+      background-color: #0b7dda;
+    }
+
+    .guesses-warning {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 600px;
+      text-align: center;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .guesses-warning strong {
+      color: #ff6b6b;
+      display: block;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
   </style>
 </head>
 
@@ -168,7 +204,13 @@
       <div id="leaderboard"></div>
     </div>
 
-  </div>
+    <div class="guesses-warning">
+      <strong>⚠️ Spoiler Alert!</strong>
+      Only press this button if you've already made your guess!<br>
+      It will reveal the correct location and show where everyone guessed.
+    </div>
+
+    <button id="viewGuessesBtn" onclick="showAllGuesses()">👁️ View Everyone's Guesses</button>
 
   <!-- ✅ Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -178,9 +220,10 @@
 
   <script>
     // ✅ DAILY VALUES
-    const clue = "According to the Guiness Book of Records, this is the oldest existing and continually operating educational institution in the world!";
-    const correctLocation = [34.0649031,-4.9734501];
-    const quizId = "2026-06-17 Oldest University"; // unique ID for today's quiz
+    const clue = "World’s oldest continuously inhabited city";
+    const correctLocation = [31.8608069,35.4605524];
+    const locationName = "Jericho";
+    const quizId = "2026-06-18 Jericho"; // unique ID for today's quiz
 
     // ✅ SUPABASE
     const SUPABASE_URL = "https://avlxgthluqcqognobjcv.supabase.co";
@@ -289,12 +332,30 @@
         {
           name: name,
           distance: distance,
-          quiz_id: quizId
+          quiz_id: quizId,
+          guess_latitude: guessCoords[0],
+          guess_longitude: guessCoords[1]
         }
       ]);
 
       // markers
-      answerMarker = L.marker(correctLocation).addTo(map);
+      answerMarker = L.marker(correctLocation).addTo(map)
+        .bindPopup(`<b>Correct Location:</b><br>${locationName}`)
+        .openPopup();
+
+      // Show all previous guesses on the map
+      const { data: allGuesses } = await supabaseClient
+        .from('guesses')
+        .select('name, guess_latitude, guess_longitude')
+        .eq('quiz_id', quizId);
+
+      allGuesses?.forEach((guess) => {
+        if (guess.guess_latitude && guess.guess_longitude) {
+          L.marker([guess.guess_latitude, guess.guess_longitude]).addTo(map)
+            .bindPopup(`<b>${guess.name}'s guess</b>`)
+            .bindTooltip(guess.name, { permanent: true, direction: 'top', offset: [0, 0] });
+        }
+      });
 
       // ✅ FIXED LINE - split across dateline with interpolated latitude
       const guessLng = guessCoords[1];
@@ -346,7 +407,7 @@
       document.getElementById("confirmBtn").disabled = true;
 
       document.getElementById("result").innerHTML =
-        `🎯 You were <b>${formatDistance(distance)}</b> away!`;
+        `🎯 The correct location was <b>${locationName}</b>!<br>You were <b>${formatDistance(distance)}</b> away!`;
 
       renderLeaderboard();
     }
@@ -398,6 +459,80 @@
       return d < 1
         ? Math.round(d * 1000) + " metres"
         : Math.round(d) + " km";
+    }
+
+    async function showAllGuesses() {
+      const confirmed = confirm("⚠️ This will reveal the correct location and show where everyone guessed! Are you sure?");
+      
+      if (!confirmed) return;
+
+      // Show the answer location
+      answerMarker = L.marker(correctLocation).addTo(map)
+        .bindPopup(`<b>Correct Location:</b><br>${locationName}`)
+        .openPopup();
+
+      // Show all guesses
+      const { data: allGuesses } = await supabaseClient
+        .from('guesses')
+        .select('name, guess_latitude, guess_longitude')
+        .eq('quiz_id', quizId);
+
+      allGuesses?.forEach((guess) => {
+        if (guess.guess_latitude && guess.guess_longitude) {
+          L.marker([guess.guess_latitude, guess.guess_longitude]).addTo(map)
+            .bindPopup(`<b>${guess.name}'s guess</b>`)
+            .bindTooltip(guess.name, { permanent: true, direction: 'top', offset: [0, 0] });
+        }
+      });
+
+      // Draw line from first guess to answer if we have one
+      if (guessMarker && !line) {
+        const guessLng = guessCoords[1];
+        const correctLng = correctLocation[1];
+        const guessLat = guessCoords[0];
+        const correctLat = correctLocation[0];
+        const diff = correctLng - guessLng;
+        
+        if (Math.abs(diff) > 180) {
+          let latAtEdge;
+          let seg1, seg2;
+          
+          if (diff > 180) {
+            const effectiveDiff = diff - 360;
+            const distToWest = -180 - guessLng;
+            const fraction = distToWest / effectiveDiff;
+            latAtEdge = guessLat + (correctLat - guessLat) * fraction;
+            
+            seg1 = [[guessLat, guessLng], [latAtEdge, -180]];
+            seg2 = [[latAtEdge, 180], [correctLat, correctLng]];
+          } else {
+            const effectiveDiff = diff + 360;
+            const distToEast = 180 - guessLng;
+            const fraction = distToEast / effectiveDiff;
+            latAtEdge = guessLat + (correctLat - guessLat) * fraction;
+            
+            seg1 = [[guessLat, guessLng], [latAtEdge, 180]];
+            seg2 = [[latAtEdge, -180], [correctLat, correctLng]];
+          }
+          
+          line = L.polyline(seg1).addTo(map);
+          L.polyline(seg2).addTo(map);
+        } else {
+          line = L.polyline([
+            [guessLat, guessLng],
+            [correctLat, correctLng]
+          ]).addTo(map);
+        }
+      }
+
+      // Fit all markers in view
+      const group = new L.featureGroup([guessMarker, answerMarker]);
+      map.fitBounds(group.getBounds(), { padding: [50, 50] });
+
+      // Disable button and change text
+      document.getElementById("viewGuessesBtn").disabled = true;
+      document.getElementById("viewGuessesBtn").innerHTML = "✅ Guesses Revealed";
+      document.getElementById("viewGuessesBtn").style.backgroundColor = "#28a745";
     }
 
   </script>
